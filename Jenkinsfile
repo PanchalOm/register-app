@@ -1,38 +1,51 @@
-pipeline {
-    agent { label 'Jenkins-Agent' }
+pipeline{
+    
+    agent any
     tools {
         jdk 'JAVA_HOME'
         maven 'MAVEN_HOME'
     }
     environment {
-	    APP_NAME = "register-app-pipeline"
-            RELEASE = "1.0.0"
-            DOCKER_USER = "ashfaque9x"
-            DOCKER_PASS = 'dockerhub'
-            IMAGE_NAME = "${DOCKER_USER}" + "/" + "${APP_NAME}"
-            IMAGE_TAG = "${RELEASE}-${BUILD_NUMBER}"
-	    JENKINS_API_TOKEN = credentials("JENKINS_API_TOKEN")
+        PATH = "$PATH:C:/maven/apache-maven-3.9.6-bin (3)/apache-maven-3.9.6/bin"
     }
     stages{
-        stage("Cleanup Workspace"){
-                steps {
-                cleanWs()
-                }
-        }
-
-        stage("Build Application"){
-            steps {
-                sh "mvn clean package"
+  
+       stage('Code Compile'){
+            steps{
+                 bat 'mvn clean compile'
+                
             }
-
-       }
-
-       stage("Test Application"){
-           steps {
-                 sh "mvn test"
-           }
-       }
-
+         }
+         
+         
+       stage('Unit test'){
+            steps{
+                 bat 'mvn test'
+                
+            }
+         }
+         
+        stage('Integration test'){
+            steps{
+                 bat 'mvn verify -DskipUnitTests'
+                
+            }
+         }
+         
+         stage('Maven build'){
+            steps{
+                 bat 'mvn clean install'
+                
+            }
+         }
+        
+         stage('OWASP Dependency Check'){
+            steps{
+                 dependencyCheck additionalArguments: '', odcInstallation: 'DP'
+                
+            }
+         } 
+         
        stage('Testing by sonar'){
             steps{
                 
@@ -41,69 +54,36 @@ pipeline {
                      -Dsonar.projectKey=Register-app '''
             
             }
-         }
-
-       stage("Quality Gate"){
-           steps {
-               script {
-                    waitForQualityGate abortPipeline: false, credentialsId: 'jenkins-sonarqube-token'
-                }	
-            }
-
-        }
-
-        stage("Build & Push Docker Image") {
-            steps {
-                script {
-                    docker.withRegistry('',DOCKER_PASS) {
-                        docker_image = docker.build "${IMAGE_NAME}"
-                    }
-
-                    docker.withRegistry('',DOCKER_PASS) {
-                        docker_image.push("${IMAGE_TAG}")
-                        docker_image.push('latest')
-                    }
-                }
-            }
-
-       }
-
-       stage("Trivy Scan") {
-           steps {
-               script {
-	            sh ('docker run -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image ashfaque9x/register-app-pipeline:latest --no-progress --scanners vuln  --exit-code 0 --severity HIGH,CRITICAL --format table')
-               }
-           }
-       }
-
-       stage ('Cleanup Artifacts') {
-           steps {
-               script {
-                    sh "docker rmi ${IMAGE_NAME}:${IMAGE_TAG}"
-                    sh "docker rmi ${IMAGE_NAME}:latest"
-               }
-          }
-       }
-
-       stage("Trigger CD Pipeline") {
-            steps {
-                script {
-                    sh "curl -v -k --user clouduser:${JENKINS_API_TOKEN} -X POST -H 'cache-control: no-cache' -H 'content-type: application/x-www-form-urlencoded' --data 'IMAGE_TAG=${IMAGE_TAG}' 'ec2-13-232-128-192.ap-south-1.compute.amazonaws.com:8080/job/gitops-register-app-cd/buildWithParameters?token=gitops-token'"
-                }
-            }
-       }
+         }   
+         
+        stage('Code build'){
+            steps{
+                
+                 bat 'mvn clean package'
+            
+             }
+         } 
     }
+    post{
+        
+          success{
+            
+             emailext attachLog: true, body: '''Your Register-app pipeline is successfully completed.<br>
+For check pipeline result click the blog.<br><br>
 
-    post {
-       failure {
-             emailext body: '''${SCRIPT, template="groovy-html.template"}''', 
-                      subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Failed", 
-                      mimeType: 'text/html',to: "ashfaque.s510@gmail.com"
-      }
-      success {
-            emailext body: '''${SCRIPT, template="groovy-html.template"}''', 
-                     subject: "${env.JOB_NAME} - Build # ${env.BUILD_NUMBER} - Successful", 
-                     mimeType: 'text/html',to: "ashfaque.s510@gmail.com"
-      }      
-   }
+Thanks.<br>
+-DevOps Team Ximple Solutions''', subject: 'Register-app pipeline result', to: 'ompanchalait@gmail.com'
+           
+            }
+        failure{
+            emailext attachLog: true, body: '''Your Register-app pipeline is unfortunately failed.<br>
+For check pipeline result click the blog.<br><br>
+
+Thanks.<br>
+-DevOps Team Ximple Solutions''', subject: 'Register-app pipeline result', to: 'ompanchalait@gmail.com'
+           
+        }
+    }
 }
+
+
