@@ -63,7 +63,7 @@ pipeline{
             
              }
          }
-        stage('Code build'){
+        stage('Clean Package'){
             steps{
                  bat 'mvn clean package'
              }
